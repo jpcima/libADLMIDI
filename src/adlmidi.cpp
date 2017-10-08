@@ -428,6 +428,7 @@ ADLMIDI_EXPORT int adl_play(ADL_MIDIPlayer *device, int sampleCount, short *out)
                 std::vector<int16_t> out_buf;
                 #endif
                 out_buf.resize(1024 /*n_samples * 2*/);
+                MIDIplay *player = reinterpret_cast<MIDIplay *>(device->adl_midiPlayer);
 
                 ssize_t in_generatedStereo = (n_periodCountStereo > 512) ? 512 : n_periodCountStereo;
                 ssize_t in_generatedPhys = in_generatedStereo * 2;
