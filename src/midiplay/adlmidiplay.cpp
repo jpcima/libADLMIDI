@@ -5,35 +5,54 @@
 #include <cstdlib>
 #include <cstring>
 #include <deque>
+#include <signal.h>
+
+#ifdef REAL_TIME_MIDI
+#include <ctype.h>
+#include <alsa/asoundlib.h>
+#include <SDL2/SDL_thread.h>
+#endif
+
+#define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
 
 #include <adlmidi.h>
 
 class MutexType
 {
-    SDL_mutex* mut;
+    SDL_mutex *mut;
 public:
     MutexType() : mut(SDL_CreateMutex()) { }
-    ~MutexType() { SDL_DestroyMutex(mut); }
-    void Lock() { SDL_mutexP(mut); }
-    void Unlock() { SDL_mutexV(mut); }
+    ~MutexType()
+    {
+        SDL_DestroyMutex(mut);
+    }
+    void Lock()
+    {
+        SDL_mutexP(mut);
+    }
+    void Unlock()
+    {
+        SDL_mutexV(mut);
+    }
 };
 
 
 static std::deque<short> AudioBuffer;
 static MutexType AudioBuffer_lock;
 
-static void SDL_AudioCallbackX(void*, Uint8* stream, int len)
+static void SDL_AudioCallbackX(void *, Uint8 *stream, int len)
 {
     SDL_LockAudio();
-    short* target = (short*) stream;
+    short *target = (short *) stream;
     AudioBuffer_lock.Lock();
     /*if(len != AudioBuffer.size())
         fprintf(stderr, "len=%d stereo samples, AudioBuffer has %u stereo samples",
             len/4, (unsigned) AudioBuffer.size()/2);*/
-    unsigned ate = len/2; // number of shorts
-    if(ate > AudioBuffer.size()) ate = AudioBuffer.size();
-    for(unsigned a=0; a<ate; ++a)
+    unsigned ate = (unsigned)len / 2; // number of shorts
+    if(ate > AudioBuffer.size())
+        ate = (unsigned)AudioBuffer.size();
+    for(unsigned a = 0; a < ate; ++a)
     {
         target[a] = AudioBuffer[a];
     }
@@ -42,10 +61,52 @@ static void SDL_AudioCallbackX(void*, Uint8* stream, int len)
     SDL_UnlockAudio();
 }
 
+static int stop = 0;
+void sighandler(int dum)
+{
+    if((dum == SIGINT) || (dum == SIGHUP))
+        stop = 1;
+}
 
+#ifdef REAL_TIME_MIDI
+static int MidiHandler(void *midiDevice)
+{
+    ADL_MIDIPlayer *myDevice = reinterpret_cast<ADL_MIDIPlayer*>(midiDevice);
 
-#undef main
-int main(int argc, char** argv)
+    int err;
+    const char *device_in = "virtual";
+    snd_rawmidi_t *handle_in = 0;
+
+    err = snd_rawmidi_open(&handle_in, NULL, "virtual", 0);
+    if(err)
+    {
+        fprintf(stderr, "snd_rawmidi_open %s failed: %d\n", device_in, err);
+        return 1;
+    }
+
+    unsigned char ch[4096];
+    while(!stop)
+    {
+        ssize_t got = snd_rawmidi_read(handle_in, &ch, 4096);
+        fprintf(stderr, "read");
+        for(ssize_t i = 0; i < got; i++)
+            fprintf(stderr, " %02x", ch[i]);
+        fprintf(stderr, "\n");
+        fflush(stderr);
+        adl_realtime_handleEvents(myDevice, (unsigned char*)ch, (unsigned int)got);
+    }
+
+    if(handle_in)
+    {
+        snd_rawmidi_drain(handle_in);
+        snd_rawmidi_close(handle_in);
+    }
+
+    return 0;
+}
+#endif
+
+int main(int argc, char **argv)
 {
 
     if(argc < 2 || std::string(argv[1]) == "--help" || std::string(argv[1]) == "-h")
@@ -59,13 +120,13 @@ int main(int argc, char** argv)
             " -nl Quit without looping\n"
             " -w Write WAV file rather than playing\n"
         );
-/*
-        for(unsigned a=0; a<sizeof(banknames)/sizeof(*banknames); ++a)
-            std::printf("%10s%2u = %s\n",
-                a?"":"Banks:",
-                a,
-                banknames[a]);
-*/
+        /*
+                for(unsigned a=0; a<sizeof(banknames)/sizeof(*banknames); ++a)
+                    std::printf("%10s%2u = %s\n",
+                        a?"":"Banks:",
+                        a,
+                        banknames[a]);
+        */
         std::printf(
             "     Use banks 2-5 to play Descent \"q\" soundtracks.\n"
             "     Look up the relevant bank number from descent.sng.\n"
@@ -76,9 +137,11 @@ int main(int argc, char** argv)
             "     The Doom & Hexen sets require one or two, while\n"
             "     Miles four-op set requires the maximum of numcards*6.\n"
             "\n"
-            );
+        );
         return 0;
     }
+
+    signal(SIGINT, sighandler);
 
     //const unsigned MaxSamplesAtTime = 512; // 512=dbopl limitation
     // How long is SDL buffer, in seconds?
@@ -107,12 +170,12 @@ int main(int argc, char** argv)
     }
     if(spec.samples != obtained.samples)
         std::fprintf(stderr, "Wanted (samples=%u,rate=%u,channels=%u); obtained (samples=%u,rate=%u,channels=%u)\n",
-            spec.samples,    spec.freq,    spec.channels,
-            obtained.samples,obtained.freq,obtained.channels);
+                     spec.samples,    spec.freq,    spec.channels,
+                     obtained.samples, obtained.freq, obtained.channels);
 
-    ADL_MIDIPlayer* myDevice;
+    ADL_MIDIPlayer *myDevice;
     myDevice = adl_init(44100);
-    if(myDevice==NULL)
+    if(myDevice == NULL)
     {
         std::fprintf(stderr, "Failed to init MIDI device!\n");
         return 1;
@@ -136,16 +199,16 @@ int main(int argc, char** argv)
         else break;
 
         std::copy(argv + (had_option ? 4 : 3), argv + argc,
-                  argv+2);
+                  argv + 2);
         argc -= (had_option ? 2 : 1);
     }
 
     if(argc >= 3)
     {
         int bankno = std::atoi(argv[2]);
-        if(adl_setBank(myDevice, bankno)!=0)
+        if(adl_setBank(myDevice, bankno) != 0)
         {
-            std::fprintf(stderr,"%s", adl_errorString());
+            std::fprintf(stderr, "%s", adl_errorString());
             return 0;
         }
     }
@@ -160,36 +223,43 @@ int main(int argc, char** argv)
     }
     if(argc >= 5)
     {
-        if(adl_setNumFourOpsChn(myDevice, std::atoi(argv[4]))!=0)
+        if(adl_setNumFourOpsChn(myDevice, std::atoi(argv[4])) != 0)
         {
             std::fprintf(stderr, "%s\n", adl_errorString());
             return 0;
         }
     }
 
-    if(adl_openFile(myDevice, argv[1])!=0)
+    #ifdef REAL_TIME_MIDI
+    SDL_Thread *thread = NULL;
+    adl_initRealTime(myDevice);
+    thread = SDL_CreateThread(MidiHandler, "MidiHandler", (void *)myDevice);
+    #else
+    if(adl_openFile(myDevice, argv[1]) != 0)
     {
         std::fprintf(stderr, "%s\n", adl_errorString());
         return 2;
     }
+    #endif
 
     SDL_PauseAudio(0);
 
-    while(1)
+    while(!stop)
     {
-        short buff[4096];
-        unsigned long gotten = adl_play(myDevice, 4096, buff);
-        if(gotten<=0) break;
+        short buff[512];
+        int gotten = adl_play(myDevice, 512, buff);
+        if(gotten <= 0)
+            break;
 
         AudioBuffer_lock.Lock();
-            size_t pos = AudioBuffer.size();
-            AudioBuffer.resize(pos + gotten);
-            for(unsigned long p = 0; p < gotten; ++p)
-               AudioBuffer[pos+p] = buff[p];
+        size_t pos = AudioBuffer.size();
+        AudioBuffer.resize(pos + (size_t)gotten);
+        for(size_t p = 0; p < (size_t)gotten; ++p)
+            AudioBuffer[pos + p] = buff[p];
         AudioBuffer_lock.Unlock();
 
-        const SDL_AudioSpec& spec_ = obtained;
-        while(AudioBuffer.size() > spec_.samples + (spec_.freq*2) * OurHeadRoomLength)
+        const SDL_AudioSpec &spec_ = obtained;
+        while(AudioBuffer.size() > spec_.samples + (spec_.freq * 2) * OurHeadRoomLength)
         {
             SDL_Delay(1);
         }

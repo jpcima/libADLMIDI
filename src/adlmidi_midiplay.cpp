@@ -131,6 +131,7 @@ void MIDIplay::AdlChannel::AddAge(int64_t ms)
 
 MIDIplay::MIDIplay():
     cmf_percussion_mode(false),
+    real_time_mode(false),
     config(NULL),
     trackStart(false),
     loopStart(false),
@@ -140,6 +141,75 @@ MIDIplay::MIDIplay():
     loopStart_hit(false)
 {
     devices.clear();
+}
+
+void MIDIplay::initRealTime()
+{
+    real_time_mode = true;
+
+    /*
+     *  Temporary copy-pasta from "bool MIDIplay::LoadMIDI(MIDIplay::fileReader &fr)"
+     */
+    config->stored_samples = 0;
+    config->backup_samples_size = 0;
+    opl.AdlPercussionMode = config->AdlPercussionMode;
+    opl.HighTremoloMode = config->HighTremoloMode;
+    opl.HighVibratoMode = config->HighVibratoMode;
+    opl.ScaleModulators = config->ScaleModulators;
+    opl.LogarithmicVolumes = config->LogarithmicVolumes;
+    opl.ChangeVolumeRangesModel(static_cast<ADLMIDI_VolumeModels>(config->VolumeModel));
+
+    if(config->VolumeModel == ADLMIDI_VolumeModel_AUTO)
+    {
+        switch(config->AdlBank)
+        {
+        default:
+            opl.m_volumeScale = OPL3::VOLUME_Generic;
+            break;
+
+        case 14://Doom 2
+        case 15://Heretic
+        case 16://Doom 1
+        case 64://Raptor
+            opl.m_volumeScale = OPL3::VOLUME_DMX;
+            break;
+
+        case 58://FatMan bank hardcoded in the Windows 9x drivers
+        case 65://Modded Wohlstand's Fatman bank
+        case 66://O'Connel's bank
+            opl.m_volumeScale = OPL3::VOLUME_9X;
+            break;
+
+        case 62://Duke Nukem 3D
+        case 63://Shadow Warrior
+        case 69://Blood
+        case 70://Lee
+        case 71://Nam
+            opl.m_volumeScale = OPL3::VOLUME_APOGEE;
+            break;
+        }
+    }
+
+    opl.NumCards    = config->NumCards;
+    opl.NumFourOps  = config->NumFourOps;
+    cmf_percussion_mode = false;
+    opl.Reset();
+
+    trackStart       = true;
+    loopStart        = true;
+    loopStart_passed = false;
+    invalidLoop      = false;
+    loopStart_hit    = false;
+
+    opl.Reset(); // Reset AdLib
+    //opl.Reset(); // ...twice (just in case someone misprogrammed OPL3 previously)
+    ch.clear();
+    ch.resize(opl.NumChannels);
+}
+
+bool MIDIplay::isRealTime()
+{
+    return real_time_mode;
 }
 
 uint64_t MIDIplay::ReadVarLen(size_t tk)
@@ -157,27 +227,48 @@ uint64_t MIDIplay::ReadVarLen(size_t tk)
     return result;
 }
 
+uint64_t MIDIplay::ReadVarLen(uint8_t **bytes)
+{
+    uint64_t result = 0;
+
+    for(;;)
+    {
+        uint8_t byte = *((*bytes)++);
+        result = (result << 7) + (byte & 0x7F);
+        if(!(byte & 0x80))
+            break;
+    }
+    return result;
+}
+
+
 
 double MIDIplay::Tick(double s, double granularity)
 {
-    if(CurrentPosition.began)
-        CurrentPosition.wait -= s;
-
-    int AntiFreezeCounter = 10000;//Limit 10000 loops to avoid freezing
-
-    while((CurrentPosition.wait <= granularity * 0.5) && (AntiFreezeCounter > 0))
+    if(!real_time_mode)
     {
-        //std::fprintf(stderr, "wait = %g...\n", CurrentPosition.wait);
-        ProcessEvents();
+        if(CurrentPosition.began)
+            CurrentPosition.wait -= s;
 
-        if(CurrentPosition.wait <= 0.0)
-            AntiFreezeCounter--;
+        int AntiFreezeCounter = 10000;//Limit 10000 loops to avoid freezing
+
+        while((CurrentPosition.wait <= granularity * 0.5) && (AntiFreezeCounter > 0))
+        {
+            //std::fprintf(stderr, "wait = %g...\n", CurrentPosition.wait);
+            ProcessEvents();
+
+            if(CurrentPosition.wait <= 0.0)
+                AntiFreezeCounter--;
+        }
+
+        if(AntiFreezeCounter <= 0)
+            CurrentPosition.wait += 1.0;/* Add extra 1 second when over 10000 events
+                                               with zero delay are been detected */
     }
-
-    if(AntiFreezeCounter <= 0)
-        CurrentPosition.wait += 1.0;/* Add extra 1 second when over 10000 events
-
-                                           with zero delay are been detected */
+    else
+    {
+        CurrentPosition.wait += 0.00001;
+    }
 
     for(uint16_t c = 0; c < opl.NumChannels; ++c)
         ch[c].AddAge(static_cast<int64_t>(s * 1000.0));
@@ -1064,6 +1155,158 @@ void MIDIplay::HandleEvent(size_t tk)
         realTime_PitchBend(MidCh, b, a);
         break;
     }
+    }
+}
+
+void MIDIplay::realTime_handleEvent(uint8_t *bytes, size_t chunk_size)
+{
+    if(chunk_size == 0)
+        return;
+
+    uint8_t *pos = bytes;
+    uint8_t *end = bytes + chunk_size;
+
+    intptr_t pos_i = (intptr_t)pos;
+    intptr_t end_i = (intptr_t)end;
+
+    unsigned long long loops = 0;
+
+    while(pos < end)
+    {
+        pos_i = (intptr_t)pos;
+        end_i = (intptr_t)end;
+        unsigned char byte = *pos;
+        pos++;
+        loops++;
+        //if(byte == 0)
+        //    continue;
+
+        if(byte == 0xF7 || byte == 0xF0) // Ignore SysEx
+        {
+            uint64_t length = ReadVarLen(&pos);
+            //std::string data( length?(const char*) &TrackData[tk][CurrentPosition.track[tk].ptr]:0, length );
+            pos += length;
+            //UI.PrintLn("SysEx %02X: %u bytes", byte, length/*, data.c_str()*/);
+            continue;
+        }
+
+        if(byte == 0xFF)
+        {
+            // Special event FF
+            uint8_t  evtype = *(pos++);
+            uint64_t length = ReadVarLen(&pos);
+            std::string data(length ? (const char *)pos : 0, length);
+            pos += length;
+
+            if(evtype == 0x2F)
+            {
+                //CurrentPosition.track[tk].status = -1;
+                continue;
+            }
+
+            if(evtype == 0x51)
+            {
+                //Tempo = InvDeltaTicks * fraction<uint64_t>(ReadBEint(data.data(), data.size()));
+                continue;
+            }
+
+            if(evtype == 6)
+            {
+                continue;
+            }
+            continue;
+        }
+
+        // Any normal event (80..EF)
+        if(byte < 0x80)
+        {
+            //byte = static_cast<uint8_t>(CurrentPosition.track[tk].status | 0x80);
+            //pos--;
+            continue;
+        }
+
+        if(byte == 0xF3)
+        {
+            pos += 1;
+            continue;
+        }
+
+        if(byte == 0xF2)
+        {
+            pos += 2;
+            continue;
+        }
+
+        /*UI.PrintLn("@%X Track %u: %02X %02X",
+                    CurrentPosition.track[tk].ptr-1, (unsigned)tk, byte,
+                    TrackData[tk][CurrentPosition.track[tk].ptr]);*/
+        uint8_t  MidCh = byte & 0x0F, EvType = byte >> 4;
+        //MidCh += 0;
+        //CurrentPosition.track[tk].status = byte;
+
+        switch(EvType)
+        {
+        case 0x8: // Note off
+        {
+            uint8_t note = *(pos++);
+            /*uint8_t vol=*/pos++;
+            //if(MidCh != 9) note -= 12; // HACK
+            realTime_NoteOff(MidCh, note);
+            break;
+        }
+        case 0x9: // Note on
+        {
+            uint8_t note = *(pos++);
+            uint8_t vol  = *(pos++);
+            //if(MidCh != 9) note -= 12; // HACK
+            if(realTime_NoteOn(MidCh, note, vol))
+                CurrentPosition.began  = true;
+            break;
+        }
+
+        case 0xA: // Note touch
+        {
+            uint8_t note = *(pos++);
+            uint8_t vol = *(pos++);
+            realTime_NoteAfterTouch(MidCh, note, vol);
+            break;
+        }
+
+        case 0xB: // Controller change
+        {
+            uint8_t ctrlno = *(pos++);
+            uint8_t value = *(pos++);
+
+            if((ctrlno == 111) && !invalidLoop)
+            {
+                loopStart = true;
+                loopStart_passed = true;
+                break;
+            }
+            realTime_Controller(MidCh, ctrlno, value);
+            break;
+        }
+
+        case 0xC: // Patch change
+            realTime_PatchChange(MidCh, *(pos++));
+            break;
+
+        case 0xD: // Channel after-touch
+        {
+            // TODO: Verify, is this correct action?
+            uint8_t vol = *(pos++);
+            realTime_ChannelAfterTouch(MidCh, vol);
+            break;
+        }
+
+        case 0xE: // Wheel/pitch bend
+        {
+            uint8_t a = *(pos++);
+            uint8_t b = *(pos++);
+            realTime_PitchBend(MidCh, b, a);
+            break;
+        }
+        }
     }
 }
 

@@ -10,6 +10,9 @@ INCLUDEPATH += $$PWD/src
 LIBS += -L/home/vitaly/_git_repos/PGE-Project/_Libs/_builds/linux/lib
 LIBS += -Wl,-Bstatic -lSDL2 -Wl,-Bdynamic -lpthread -ldl
 
+DEFINES += REAL_TIME_MIDI
+LIBS += -lasound
+
 HEADERS += \
     src/adlbank.h \
     src/adldata.hh \

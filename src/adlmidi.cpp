@@ -71,6 +71,30 @@ ADLMIDI_EXPORT struct ADL_MIDIPlayer *adl_init(long sample_rate)
     return _device;
 }
 
+ADLMIDI_EXPORT int adl_initRealTime(ADL_MIDIPlayer *device)
+{
+    if(device == NULL)
+        return -1;
+    MIDIplay *player = reinterpret_cast<MIDIplay *>(device->adl_midiPlayer);
+    if(player)
+    {
+        player->rt_lock.lock();
+        player->initRealTime();
+        player->rt_lock.unlock();
+    }
+    return 0;
+}
+
+ADLMIDI_EXPORT int adl_realtime_handleEvents(ADL_MIDIPlayer *device, unsigned char *bytes, unsigned int size)
+{
+    if(device == NULL)
+        return -1;
+    MIDIplay *player = reinterpret_cast<MIDIplay *>(device->adl_midiPlayer);
+    if(player)
+        player->realTime_handleEvent(bytes, (size_t)size);
+    return 0;
+}
+
 ADLMIDI_EXPORT int adl_setNumCards(ADL_MIDIPlayer *device, int numCards)
 {
     if(device == NULL)
@@ -383,6 +407,10 @@ ADLMIDI_EXPORT int adl_play(ADL_MIDIPlayer *device, int sampleCount, short *out)
         }
         else
         {
+            MIDIplay* player = reinterpret_cast<MIDIplay *>(device->adl_midiPlayer);
+            if(player->isRealTime())
+                player->rt_lock.lock();
+
             const double eat_delay = device->delay < device->maxdelay ? device->delay : device->maxdelay;
             device->delay -= eat_delay;
             device->carry += device->PCM_RATE * eat_delay;
@@ -390,7 +418,7 @@ ADLMIDI_EXPORT int adl_play(ADL_MIDIPlayer *device, int sampleCount, short *out)
             //n_periodCountPhys = n_periodCountStereo * 2;
             device->carry -= n_periodCountStereo;
 
-            if(device->SkipForward > 0)
+            if(!player->isRealTime() && (device->SkipForward > 0))
                 device->SkipForward -= 1;
             else
             {
@@ -410,10 +438,10 @@ ADLMIDI_EXPORT int adl_play(ADL_MIDIPlayer *device, int sampleCount, short *out)
                 if(device->NumCards == 1)
                 {
                     #ifdef ADLMIDI_USE_DOSBOX_OPL
-                    reinterpret_cast<MIDIplay *>(device->adl_midiPlayer)->opl.cards[0].GenerateArr(out_buf.data(), &in_generatedStereo);
+                    player->opl.cards[0].GenerateArr(out_buf.data(), &in_generatedStereo);
                     in_generatedPhys = in_generatedStereo * 2;
                     #else
-                    OPL3_GenerateStream(&(reinterpret_cast<MIDIplay *>(device->adl_midiPlayer))->opl.cards[0], out_buf.data(), static_cast<Bit32u>(in_generatedStereo));
+                    OPL3_GenerateStream(&player->opl.cards[0], out_buf.data(), static_cast<Bit32u>(in_generatedStereo));
                     #endif
                     /* Process it */
                     SendStereoAudio(device, sampleCount, in_generatedStereo, out_buf.data(), gotten_len, out);
@@ -431,13 +459,13 @@ ADLMIDI_EXPORT int adl_play(ADL_MIDIPlayer *device, int sampleCount, short *out)
                     for(unsigned card = 0; card < device->NumCards; ++card)
                     {
                         #ifdef ADLMIDI_USE_DOSBOX_OPL
-                        reinterpret_cast<MIDIplay *>(device->adl_midiPlayer)->opl.cards[card].GenerateArr(in_mixBuffer.data(), &in_generatedStereo);
+                        player->opl.cards[card].GenerateArr(in_mixBuffer.data(), &in_generatedStereo);
                         in_generatedPhys = in_generatedStereo * 2;
                         size_t in_samplesCount = static_cast<size_t>(in_generatedPhys);
                         for(size_t a = 0; a < in_samplesCount; ++a)
                             out_buf[a] += in_mixBuffer[a];
                         #else
-                        OPL3_GenerateStreamMix(&(reinterpret_cast<MIDIplay *>(device->adl_midiPlayer))->opl.cards[card], out_buf.data(), static_cast<Bit32u>(in_generatedStereo));
+                        OPL3_GenerateStreamMix(&player->opl.cards[card], out_buf.data(), static_cast<Bit32u>(in_generatedStereo));
                         #endif
                     }
 
@@ -447,6 +475,9 @@ ADLMIDI_EXPORT int adl_play(ADL_MIDIPlayer *device, int sampleCount, short *out)
 
                 left -= in_generatedPhys;
                 gotten_len += (in_generatedPhys) - device->stored_samples;
+
+                if(player->isRealTime())
+                    player->rt_lock.unlock();
             }
 
             device->delay = reinterpret_cast<MIDIplay *>(device->adl_midiPlayer)->Tick(eat_delay, device->mindelay);

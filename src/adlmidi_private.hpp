@@ -62,6 +62,8 @@
 #include <stdio.h>
 #include <limits> // numeric_limit
 
+#include <mutex>
+
 #include <deque>
 #include <algorithm>
 
@@ -247,6 +249,7 @@ class MIDIplay
     };
     std::vector<MIDIchannel> Ch;
     bool cmf_percussion_mode;
+    bool real_time_mode;
 
     // Additional information about AdLib channels
     struct AdlChannel
@@ -294,6 +297,11 @@ public:
     ~MIDIplay()
     {}
 
+    void initRealTime();
+    bool isRealTime();
+
+    std::mutex rt_lock;
+
     ADL_MIDIPlayer *config;
     std::string musTitle;
     fraction<uint64_t> InvDeltaTicks, Tempo;
@@ -310,6 +318,7 @@ public:
     static uint64_t ReadLEint(const void *buffer, size_t nbytes);
 
     uint64_t ReadVarLen(size_t tk);
+    uint64_t ReadVarLen(uint8_t **bytes);
     uint64_t ReadVarLenEx(size_t tk, bool &ok);
 
     /*
@@ -484,6 +493,8 @@ public:
     void realTime_BankChangeLSB(uint8_t channel, uint8_t lsb);
     void realTime_BankChangeMSB(uint8_t channel, uint8_t msb);
     void realTime_BankChange(uint8_t channel, uint16_t bank);
+
+    void realTime_handleEvent(uint8_t *bytes, size_t chunk_size);
 
 private:
     enum

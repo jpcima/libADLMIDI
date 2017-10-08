@@ -113,6 +113,12 @@ extern const char *adl_errorString();
 /*Initialize ADLMIDI Player device*/
 extern struct ADL_MIDIPlayer *adl_init(long sample_rate);
 
+/*Initialize real-time playback*/
+extern int adl_initRealTime(ADL_MIDIPlayer *device);
+
+/*Handle real time events sequence*/
+extern int adl_realtime_handleEvents(ADL_MIDIPlayer *device, unsigned char *bytes, unsigned int size);
+
 /*Load MIDI file from File System*/
 extern int adl_openFile(struct ADL_MIDIPlayer *device, char *filePath);
 
