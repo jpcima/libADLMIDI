@@ -815,6 +815,7 @@ public:
         /* For internal usage */
 
         unsigned long PCM_RATE;
+        ADLMIDI_SampleFormat sampleFormat;
     };
 
     struct MIDI_MarkerEntry
@@ -909,7 +910,7 @@ public:
 #endif
     OPL3 opl;
 
-    int16_t outBuf[1024];
+    int32_t outBuf[1024];
 
     Setup m_setup;
 

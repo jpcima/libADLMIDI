@@ -65,6 +65,15 @@ enum ADLMIDI_VolumeModels
     ADLMIDI_VolumeModel_9X
 };
 
+enum ADLMIDI_SampleFormat
+{
+    ADLMIDI_SampleFormat_S16 = 0,  /* signed 16-bit */
+    ADLMIDI_SampleFormat_S16_32,   /* signed 16-bit, in 32-bit container */
+    ADLMIDI_SampleFormat_F32,      /* float 32-bit */
+    ADLMIDI_SampleFormat_F64,      /* float 64-bit */
+    ADLMIDI_SampleFormat_Count,
+};
+
 struct ADL_MIDIPlayer
 {
     void *adl_midiPlayer;
@@ -239,6 +248,9 @@ extern int  adl_play(struct ADL_MIDIPlayer *device, int sampleCount, short out[]
 
 /*Generate audio output from chip emulators without iteration of MIDI timers.*/
 extern int  adl_generate(struct ADL_MIDIPlayer *device, int sampleCount, short *out);
+
+/*Set the format of output samples */
+extern int adl_setSampleFormat(struct ADL_MIDIPlayer *device, ADLMIDI_SampleFormat format);
 
 /**
  * @brief Periodic tick handler.

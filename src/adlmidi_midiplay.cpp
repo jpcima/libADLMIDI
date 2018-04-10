@@ -712,7 +712,8 @@ MIDIplay::MIDIplay(unsigned long sampleRate):
 
     m_setup.emulator = ADLMIDI_EMU_NUKED;
 
-    m_setup.PCM_RATE   = sampleRate;
+    m_setup.PCM_RATE     = sampleRate;
+    m_setup.sampleFormat = ADLMIDI_SampleFormat_S16;
     m_setup.mindelay = 1.0 / (double)m_setup.PCM_RATE;
     m_setup.maxdelay = 512.0 / (double)m_setup.PCM_RATE;
 
