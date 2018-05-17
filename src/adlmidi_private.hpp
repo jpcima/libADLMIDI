@@ -226,11 +226,11 @@ public:
         adlinsdata2 ins[128];
     };
     typedef BasicBankMap<Bank> BankMap;
-private:
     BankMap dynamic_banks;
-public:
+
+    static const Bank emptyBank;
+
     void    setEmbeddedBank(unsigned int bank);
-    static const adlinsdata2 emptyInstrument;
     enum { PercussionTag = 1 << 15 };
 
     //! Total number of running concurrent emulated chips

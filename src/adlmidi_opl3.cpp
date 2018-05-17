@@ -160,7 +160,16 @@ static adlinsdata2 makeEmptyInstrument()
     return ins;
 }
 
-const adlinsdata2 OPL3::emptyInstrument = makeEmptyInstrument();
+static OPL3::Bank makeEmptyBank()
+{
+    OPL3::Bank bank;
+    adlinsdata2 ins = makeEmptyInstrument();
+    for(unsigned i = 0; i < 128; ++i)
+        bank.ins[i] = ins;
+    return bank;
+}
+
+const OPL3::Bank OPL3::emptyBank = makeEmptyBank();
 
 OPL3::OPL3() :
     NumCards(1),

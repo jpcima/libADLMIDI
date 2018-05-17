@@ -1050,7 +1050,7 @@ bool MIDIplay::realTime_NoteOn(uint8_t channel, uint8_t note, uint8_t velocity)
     //if(midiins == 56) vol = vol*6/10; // HACK
     //int meta = banks[opl.AdlBank][midiins];
 
-    const adlinsdata2 *ains = bnk ? &bnk->ins[midiins] : &OPL3::emptyInstrument;
+    const adlinsdata2 *ains = &(bnk ? bnk : &OPL3::emptyBank)->ins[midiins];
     int16_t tone = note;
 
     if(!isPercussion && !isXgPercussion && (bank > 0)) // For non-zero banks
