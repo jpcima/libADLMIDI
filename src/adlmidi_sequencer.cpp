@@ -82,7 +82,7 @@ static void rtSysEx(void *userdata, const uint8_t *msg, size_t size)
     ADL_UNUSED(context);
     ADL_UNUSED(msg);
     ADL_UNUSED(size);
-    /* TODO: pass SysEx HERE! */
+    context->realTime_SysEx(msg, size);
 }
 
 
