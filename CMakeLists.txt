@@ -164,6 +164,7 @@ function(handle_options targetLib)
             set(HAS_EMULATOR TRUE)
             target_sources(${targetLib} PRIVATE
                 ${libADLMIDI_SOURCE_DIR}/src/chips/opal_opl3.cpp
+                ${libADLMIDI_SOURCE_DIR}/src/chips/opal/opal.cpp
             )
         else()
             target_compile_definitions(${targetLib} PUBLIC ADLMIDI_DISABLE_OPAL_EMULATOR)
