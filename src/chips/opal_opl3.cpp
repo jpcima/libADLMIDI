@@ -72,7 +72,7 @@ void OpalOPL3::writePan(uint16_t addr, uint8_t data)
 void OpalOPL3::nativeGenerate(int16_t *frame)
 {
     Opal *chip_r = reinterpret_cast<Opal *>(m_chip);
-    chip_r->Sample(&frame[0], &frame[1]);
+    chip_r->Sample(frame);
 }
 
 const char *OpalOPL3::emulatorName()
