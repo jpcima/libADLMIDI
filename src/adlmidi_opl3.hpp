@@ -29,6 +29,10 @@
 #include "adlmidi_private.hpp"
 #include "adlmidi_bankmap.h"
 
+#ifndef ADLMIDI_DISABLE_CUSTOM_EMULATOR
+#include "chips/custom_opl3.h"
+#endif
+
 #define BEND_COEFFICIENT                172.4387
 
 #define OPL3_CHANNELS_MELODIC_BASE      0
@@ -62,6 +66,10 @@ public:
 #ifndef ADLMIDI_HW_OPL
     //! Running chip emulators
     std::vector<AdlMIDI_SPtr<OPLChipBase > > m_chips;
+#ifndef ADLMIDI_DISABLE_CUSTOM_EMULATOR
+    //! Custom chip profile
+    AdlMIDI_UPtr<CustomOPL3::ProfileData, CustomOPL3::ProfileDeleter> m_customProfile;
+#endif
 #endif
 
 private:
@@ -299,6 +307,18 @@ public:
      * @brief Clean up all running emulated chip instances
      */
     void clearChips();
+    #endif
+
+    #ifndef ADLMIDI_DISABLE_CUSTOM_EMULATOR
+    /**
+     * @brief Get the custom chip profile
+     */
+    int getCustomChipProfile(ADLMIDI_ChipProfile *profile);
+
+    /**
+     * @brief Set the custom chip profile
+     */
+    int setCustomChipProfile(const ADLMIDI_ChipProfile *profile);
     #endif
 
     /**

@@ -627,6 +627,8 @@ enum ADL_Emulator
     ADLMIDI_EMU_OPAL,
     /*! Java */
     ADLMIDI_EMU_JAVA,
+    /*! Customizable DosBox emulator */
+    ADLMIDI_EMU_CUSTOM = 31,
     /*! Count instrument on the level */
     ADLMIDI_EMU_end
 };
@@ -1241,6 +1243,19 @@ extern ADLMIDI_DECLSPEC void adl_setDebugMessageHook(struct ADL_MIDIPlayer *devi
  * To get the valid MIDI channel you will need to apply the & 0x0F mask to every value.
  */
 extern ADLMIDI_DECLSPEC int adl_describeChannels(struct ADL_MIDIPlayer *device, char *text, char *attr, size_t size);
+
+#if defined(ADLMIDI_EXPERIMENTAL_API)
+//TODO: future-proof profile API
+
+struct ADLMIDI_ChipProfile
+{
+    //! 8 internal waves, 1024 samples as signed 12-bit, null for default
+    const int16_t *wave[8];
+};
+
+extern ADLMIDI_DECLSPEC int adl_getCustomChipProfile(struct ADL_MIDIPlayer *device, struct ADLMIDI_ChipProfile *profile);
+extern ADLMIDI_DECLSPEC int adl_setCustomChipProfile(struct ADL_MIDIPlayer *device, const struct ADLMIDI_ChipProfile *profile);
+#endif
 
 #ifdef __cplusplus
 }

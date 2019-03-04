@@ -110,6 +110,7 @@ option(USE_DOSBOX_EMULATOR  "Use DosBox 0.74 OPL3 emulator (semi-accurate, sugge
 option(USE_NUKED_EMULATOR   "Use Nuked OPL3 emulator (most accurate, powerful)" ON)
 option(USE_OPAL_EMULATOR    "Use Opal emulator (inaccurate)" ON)
 option(USE_JAVA_EMULATOR    "Use JavaOPL emulator" ON)
+option(USE_CUSTOM_EMULATOR  "Use DOSBox emulator with user customization" OFF)
 
 option(WITH_GENADLDATA      "Build and run full rebuild of embedded banks cache" OFF)
 option(WITH_GENADLDATA_COMMENTS "Enable comments in generated ADLDATA cache file" OFF)
@@ -176,6 +177,16 @@ function(handle_options targetLib)
             )
         else()
             target_compile_definitions(${targetLib} PUBLIC ADLMIDI_DISABLE_JAVA_EMULATOR)
+        endif()
+
+        if(USE_CUSTOM_EMULATOR)
+            set(HAS_EMULATOR TRUE)
+            target_sources(${targetLib} PRIVATE
+                ${libADLMIDI_SOURCE_DIR}/src/chips/custom_opl3.cpp
+                ${libADLMIDI_SOURCE_DIR}/src/chips/custom/dboplEX.cpp
+            )
+        else()
+            target_compile_definitions(${targetLib} PUBLIC ADLMIDI_DISABLE_CUSTOM_EMULATOR)
         endif()
 
         if(NOT HAS_EMULATOR)
@@ -369,6 +380,7 @@ message("USE_DOSBOX_EMULATOR      = ${USE_DOSBOX_EMULATOR}")
 message("USE_NUKED_EMULATOR       = ${USE_NUKED_EMULATOR}")
 message("USE_OPAL_EMULATOR        = ${USE_OPAL_EMULATOR}")
 message("USE_JAVA_EMULATOR        = ${USE_JAVA_EMULATOR}")
+message("USE_CUSTOM_EMULATOR      = ${USE_CUSTOM_EMULATOR}")
 
 message("===== Utils and extras =====")
 message("WITH_GENADLDATA          = ${WITH_GENADLDATA}")

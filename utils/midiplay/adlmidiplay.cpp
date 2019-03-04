@@ -253,6 +253,7 @@ int main(int argc, char **argv)
             " --emu-dosbox Uses DosBox 0.74 OPL3 emulator\n"
             " --emu-opal   Uses Opal OPL3 emulator\n"
             " --emu-java   Uses Java OPL3 emulator\n"
+            " --emu-custom Uses Custom OPL3 emulator\n"
             #endif
             "\n"
             "Where <bank> - number of embeeded bank or filepath to custom WOPL bank file\n"
@@ -411,6 +412,8 @@ int main(int argc, char **argv)
             emulator = ADLMIDI_EMU_OPAL;
         else if(!std::strcmp("--emu-java", argv[2]))
             emulator = ADLMIDI_EMU_JAVA;
+        else if(!std::strcmp("--emu-custom", argv[2]))
+            emulator = ADLMIDI_EMU_CUSTOM;
 #endif
         else if(!std::strcmp("-fp", argv[2]))
             adl_setSoftPanEnabled(myDevice, 1);

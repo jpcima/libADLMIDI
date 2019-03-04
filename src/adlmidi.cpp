@@ -1645,3 +1645,29 @@ ADLMIDI_EXPORT int adl_rt_systemExclusive(struct ADL_MIDIPlayer *device, const A
     assert(play);
     return play->realTime_SysEx(msg, size);
 }
+
+ADLMIDI_EXPORT int adl_getCustomChipProfile(struct ADL_MIDIPlayer *device, struct ADLMIDI_ChipProfile *profile)
+{
+#ifndef ADLMIDI_DISABLE_CUSTOM_EMULATOR
+    if(!device)
+        return -1;
+    MidiPlayer *play = GET_MIDI_PLAYER(device);
+    assert(play);
+    return play->m_synth->getCustomChipProfile(profile);
+#else
+    return -1;
+#endif
+}
+
+ADLMIDI_EXPORT int adl_setCustomChipProfile(struct ADL_MIDIPlayer *device, const struct ADLMIDI_ChipProfile *profile)
+{
+#ifndef ADLMIDI_DISABLE_CUSTOM_EMULATOR
+    if(!device)
+        return -1;
+    MidiPlayer *play = GET_MIDI_PLAYER(device);
+    assert(play);
+    return play->m_synth->setCustomChipProfile(profile);
+#else
+    return -1;
+#endif
+}

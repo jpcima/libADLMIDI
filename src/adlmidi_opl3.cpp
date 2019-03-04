@@ -53,6 +53,11 @@ static const unsigned OPLBase = 0x388;
 #   ifndef ADLMIDI_DISABLE_JAVA_EMULATOR
 #       include "chips/java_opl3.h"
 #   endif
+
+// Custom OPL3 emulator
+#   ifndef ADLMIDI_DISABLE_CUSTOM_EMULATOR
+#       include "chips/custom_opl3.h"
+#   endif
 #endif
 
 static const unsigned adl_emulatorSupport = 0
@@ -71,6 +76,10 @@ static const unsigned adl_emulatorSupport = 0
 
 #   ifndef ADLMIDI_DISABLE_JAVA_EMULATOR
     | (1u << ADLMIDI_EMU_JAVA)
+#   endif
+
+#   ifndef ADLMIDI_DISABLE_CUSTOM_EMULATOR
+    | (1u << ADLMIDI_EMU_CUSTOM)
 #   endif
 #endif
 ;
@@ -721,6 +730,40 @@ void OPL3::clearChips()
 }
 #endif
 
+#ifndef ADLMIDI_DISABLE_CUSTOM_EMULATOR
+int OPL3::getCustomChipProfile(ADLMIDI_ChipProfile *profile)
+{
+    // must be identical!
+    assert(sizeof(ADLMIDI_ChipProfile) == sizeof(CustomOPL3::ChipProfile));
+
+    CustomOPL3::ProfileData *pd = m_customProfile.get();
+    if(!pd)
+    {
+        pd = CustomOPL3::newProfileData();
+        m_customProfile.reset(pd);
+    }
+
+    CustomOPL3::getProfile(*(CustomOPL3::ChipProfile *)profile, *pd);
+    return 0;
+}
+
+int OPL3::setCustomChipProfile(const ADLMIDI_ChipProfile *profile)
+{
+    // must be identical!
+    assert(sizeof(ADLMIDI_ChipProfile) == sizeof(CustomOPL3::ChipProfile));
+
+    CustomOPL3::ProfileData *pd = m_customProfile.get();
+    if(!pd)
+    {
+        pd = CustomOPL3::newProfileData();
+        m_customProfile.reset(pd);
+    }
+
+    CustomOPL3::setProfile(*(const CustomOPL3::ChipProfile *)profile, *pd);
+    return 0;
+}
+#endif
+
 void OPL3::reset(int emulator, unsigned long PCM_RATE, void *audioTickHandler)
 {
 #ifndef ADLMIDI_HW_OPL
@@ -794,6 +837,19 @@ void OPL3::reset(int emulator, unsigned long PCM_RATE, void *audioTickHandler)
         case ADLMIDI_EMU_JAVA:
             chip = new JavaOPL3;
             break;
+#endif
+#ifndef ADLMIDI_DISABLE_CUSTOM_EMULATOR
+        case ADLMIDI_EMU_CUSTOM:
+        {
+            CustomOPL3::ProfileData *pd = m_customProfile.get();
+            if(!pd)
+            {
+                pd = CustomOPL3::newProfileData();
+                m_customProfile.reset(pd);
+            }
+            chip = new CustomOPL3(*pd);
+            break;
+        }
 #endif
         }
         m_chips[i].reset(chip);

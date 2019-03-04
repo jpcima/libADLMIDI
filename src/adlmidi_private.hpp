@@ -35,6 +35,7 @@
 #   endif
 #endif
 
+#define ADLMIDI_EXPERIMENTAL_API 1
 
 #ifdef _WIN32
 #define NOMINMAX 1
